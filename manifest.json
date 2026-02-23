@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "ProConnect Copy, Paste, Delete Utility",
+  "version": "0.1",
+  "description": "Helpful automation tools for Intuit Proconnect",
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://ito.intuit.com/*"
+      ],
+      "js": [
+        "src/clerk.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
