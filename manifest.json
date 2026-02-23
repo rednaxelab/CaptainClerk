@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "ProConnect Copy, Paste, Delete Utility",
+  "name": "CaptainClerk",
   "version": "0.1",
   "description": "Helpful automation tools for Intuit Proconnect",
   "permissions": [
