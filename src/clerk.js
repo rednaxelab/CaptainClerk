@@ -1,29 +1,52 @@
-document.addEventListener('keydown', (e) => {
-  // Normalize key for comparison
-  const key = e.key.toLowerCase();
-  // Ctrl + Shift + V (Paste Data)
-  if (e.ctrlKey && e.shiftKey && key === 'v') {
-    e.preventDefault();
-    enter_data();
-  }
-  // Alt + Shift + 0 (Delete Active Row)
-  else if (e.altKey && e.shiftKey && key === 'end') {
-    e.preventDefault();
-    clear_data();
-  }
-  // Alt + Shift + Delete (Delete Until Empty)
-  else if (e.altKey && e.shiftKey && key === 'delete') {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    delete_until_empty();
-  }
-  // Alt + Shift + D (Delete Active Row)
-  else if (e.altKey && key === 'delete') {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    delete_active_row();
-  }
-}, true);
+const url_params = new URLSearchParams(window.location.search);
+const tax_return_window = url_params.get('splitViewEnabled') === 'true';
+let tax_return_side_bar_hidden = false;
+
+if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax return viewer
+  document.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    // Ctrl + Shift + L (Hides sidebar on tax return tab)
+    if (e.ctrlKey && e.shiftKey && key === 'l') {
+      const sidebar = document.querySelector('div.sidebar');
+      if (sidebar) {
+        if (tax_return_side_bar_hidden) {
+          sidebar.hidden = false;
+          tax_return_side_bar_hidden = false;
+        } else {
+          sidebar.hidden = true;
+          tax_return_side_bar_hidden = true;
+        }
+      }
+    }
+  }, true);
+} else { // these is normal proconnect extension functionality
+  document.addEventListener('keydown', (e) => {
+    // Normalize key for comparison
+    const key = e.key.toLowerCase();
+    // Ctrl + Shift + V (Paste Data)
+    if (e.ctrlKey && e.shiftKey && key === 'v') {
+      e.preventDefault();
+      enter_data();
+    }
+    // Alt + Shift + 0 (clear out grid of inputs)
+    else if (e.altKey && e.shiftKey && key === 'end') {
+      e.preventDefault();
+      clear_data();
+    }
+    // Alt + Shift + Delete (Delete Until Empty)
+    else if (e.altKey && e.shiftKey && key === 'delete') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      delete_until_empty();
+    }
+    // Alt + Shift + D (Delete Active Row)
+    else if (e.altKey && key === 'delete') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      delete_active_row();
+    }
+  }, true);
+}
 
 async function enter_data() {
   const clerk = new Clerk();
@@ -170,7 +193,6 @@ class Clerk {
       for (let i = 0; i < tsv_rows; i++) {
         const current_idx = start_row + i;
         if (current_idx >= this.#inputs.length) {
-          console.log("Waiting for new row to appear...");
           await this.#wait_for_sync();
         }
 
@@ -284,7 +306,6 @@ class Clerk {
         await this.clear_input(el);
       }
     }
-    console.log(`Cleared ${allElements.length} inputs.`);
   }
 } // end class definition
 
