@@ -28,6 +28,11 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
       e.preventDefault();
       enter_data();
     }
+    // Alt + Shift + C (Copy Data)
+    if (e.altKey && e.shiftKey && key === 'c') {
+      e.preventDefault();
+      copy_data();
+    }
     // Alt + Shift + 0 (clear out grid of inputs)
     else if (e.altKey && e.shiftKey && key === 'end') {
       e.preventDefault();
@@ -54,7 +59,17 @@ async function enter_data() {
     await clerk.init({ read_clipboard: true });
     await clerk.enter_clipboard_data();
   } catch (err) {
-    console.error("Clerk initializtaion aborted:", err.message);
+    console.error("Clerk enter data aborted:", err.message);
+  }
+}
+
+async function copy_data() {
+  const clerk = new Clerk();
+  try {
+    await clerk.init({ read_clipboard: false });
+    await clerk.export_to_clipboard();
+  } catch (err) {
+    console.error("Clerk export aborted:", err.message);
   }
 }
 
@@ -139,10 +154,14 @@ class Clerk {
   async read_clipboard() {
     const parse_tsv_data = (raw_data) => {
       return raw_data.split(/\r?\n/)
-        .map(row => row.replace(/\u00A0/g, ' ')) // Keep the row, don't trim the whole line yet
-        .filter(row => row.trim().length > 0)    // Only skip truly empty lines
-        .map(row => row.split('\t')              // Split by tab
-          .map(cell => cell.trim()));            // Trim individual cells
+        .map(row => row.replace(/\u00A0/g, ' '))
+        .filter(row => row.trim().length > 0)
+        .map(row => row.split('\t')
+          .map(cell => {
+            const trimmed = cell.trim();
+            // Check if the cell is exactly "-" or " - " (Accounting zero)
+            return (trimmed === '-' || trimmed === '–') ? '' : trimmed;
+          }));
     };
 
     try {
@@ -307,8 +326,18 @@ class Clerk {
       }
     }
   }
-} // end class definition
 
+  async export_to_clipboard() {
+    const tsvString = this.#inputs
+      .map(row => row.map(input => input.value).join('\t'))
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(tsvString);
+    } catch (err) {
+      alert('Failed to copy to clipboard: ' + err);
+    }
+  }
+} // end class definition
 
 
 /*********************FUNCTIONS FOR DELETING SHIT****************************/
