@@ -37,6 +37,11 @@ document.addEventListener('keydown', async (e) => {
     e.preventDefault();
     await clear_all_tabs();
   }
+  // Alt + Shift + L (Create TSV in clipboard of list data (K-1s, etc))
+  if (e.altKey && e.shiftKey && key === 'l') {
+    e.preventDefault();
+    await dump_full_list_data();
+  }
 }, true);
 
 /***************************MAIN IMPLEMENTATION FUNCTIONS***********************************/
@@ -291,5 +296,18 @@ async function clear_all_tabs() {
   const tabs = await get_active_tab();
   for (let i = 0; i < tabs.len; i++) {
     await set_tab_value(i, "", active_id);
+  }
+}
+
+async function dump_full_list_data() {
+  try {
+    const names = await get_all_tab_names();
+    if (!names || names.length === 0) return;
+    const tsv_string = names.join('\n');
+    await navigator.clipboard.writeText(tsv_string);
+    alert('Tab list successfully copied to clipboard.');
+  } catch (err) {
+    console.error(err);
+    alert('Failed to copy to clipboard. Ensure the page has focus.');
   }
 }

@@ -25,6 +25,7 @@
 | `CTRL+ALT+SHIFT+V`|Paste to tabs, enforce zeros entry.|
 | `ALT+SHIFT+S` |Sum all boxes by tab.|
 | `ALT+SHIFT+0` |Clear all boxes by tab.|
+| `ALT+SHIFT+L` |Copy all "View All" list data to clipboard in TSV Format.|
 
 ## Things to implement
 
