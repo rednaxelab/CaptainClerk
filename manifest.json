@@ -12,7 +12,8 @@
         "https://ito.intuit.com/*"
       ],
       "js": [
-        "src/clerk.js"
+        "src/clerk.js",
+        "src/clerk_tabs.js"
       ],
       "run_at": "document_idle"
     }
