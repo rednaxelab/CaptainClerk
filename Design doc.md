@@ -29,7 +29,6 @@
 ## Things to implement
 
 - [ ] Tax Return Window: Way to quickly navigate tax returns when sidebar is hidden. Like `ctrl+shift+up and down` which will unhide the panel temporarily, select the next or last form. And maybe a fuzzy finder for all forms? But that can wait until later.
-- [ ] K-1 input type thing where you copy values and it enters one, switches tab, enters next, etc.
 - [ ] Something that will toggle the possible inputs and style them (like red box around). This will be useful to see what boxes can be copied and pasted from, to build a schema for import with right columns, etc.
 - [ ] Maybe some UI and UX--currently, everything is set up using hotkeys which are fine, but may be hard for my older partner.
 - [ ] Should I include Playwright-CRX? Split out for now? That way I can run my full-on playwright scraping scripts directly from browser.

@@ -7,15 +7,35 @@ document.addEventListener('keydown', async (e) => {
   if (e.repeat) return;
   // Normalize key for comparison
   const key = e.key.toLowerCase();
-  // Ctrl + Shift + Down Arrow
+  // Ctrl + Shift + Down Arrow (Navigate one tab left)
   if (e.ctrlKey && e.shiftKey && key === 'arrowdown') {
     e.preventDefault();
     await move_tab(1);
   }
-  // Ctrl + Shift + Up Arrow
+  // Ctrl + Shift + Up Arrow (Navigate one tab right)
   if (e.ctrlKey && e.shiftKey && key === 'arrowup') {
     e.preventDefault();
     await move_tab(-1);
+  }
+  // Alt + Shift + V (Paste TSV data in tabs -- ignoring zeroes)
+  if (e.altKey && e.shiftKey && key === 'v') {
+    e.preventDefault();
+    await paste_to_tabs(true);
+  }
+  // Ctrl + Alt + Shift + V (Paste TSV data in tabs -- enforcing zeroes and "")
+  if (e.ctrlKey && e.altKey && e.shiftKey && key === 'v') {
+    e.preventDefault();
+    await paste_to_tabs(false);
+  }
+  // Alt + Shift + S (Sum all data)
+  if (e.altKey && e.shiftKey && key === 's') {
+    e.preventDefault();
+    await sum_all_tabs();
+  }
+  // Alt + Shift + 0 (Clear data from all tabs same element as active element)
+  if (e.altKey && e.shiftKey && (e.key === '0' || e.key === ')')) {
+    e.preventDefault();
+    await clear_all_tabs();
   }
 }, true);
 
@@ -138,6 +158,34 @@ function wait_for_element(selector, timeout = 2000) {
   });
 }
 
+async function read_clipboard() {
+  const parse_tsv_data = (raw_data) => {
+    return raw_data.split(/\r?\n/)
+      .filter(row => row.trim().length > 0)
+      .map(row => row.split('\t').map(cell => {
+        const trimmed = cell.replace(/\u00A0/g, ' ').trim();
+        return (trimmed === '-' || trimmed === '–') ? '' : trimmed;
+      }));
+  };
+  let raw_clipboard;
+  try {
+    raw_clipboard = await navigator.clipboard.readText();
+  } catch (err) {
+    console.error('Failed to read clipboard contents:', err);
+    return null; // Return null instead of undefined for explicit checking
+  }
+  const data = parse_tsv_data(raw_clipboard);
+  if (!(Array.isArray(data) && data.length > 0 && Array.isArray(data[0]))) {
+    return null; // Return null if parsing fails
+  }
+  return {
+    data: data,
+    dims: {
+      row: data.length,
+      col: data[0].length
+    }
+  };
+}
 /****************************MAIN INTERATION FUNCTIONS**************************************/
 
 async function move_tab(increment) {
@@ -156,6 +204,7 @@ async function move_tab(increment) {
   if (new_tab_element) {
     new_tab_element.focus();
     new_tab_element.click();
+    new_tab_element.select();
   }
 }
 
@@ -168,5 +217,79 @@ async function set_tab_value(idx, value, input_element_id) {
     new_tab_element.focus();
     new_tab_element.click();
     await set_input_value(value, new_tab_element);
+  }
+}
+
+async function get_tab_value(idx, input_element_id) {
+  if (!input_element_id) throw new Error(`No input element selected to target with data entry.`);
+  await select_tab_by_index(idx);
+  const selector = `input[id=${input_element_id}]`;
+  const new_tab_element = await wait_for_element(selector);
+  if (new_tab_element) {
+    return new_tab_element.value;
+  }
+}
+
+async function paste_to_tabs(ignore_zeros) {
+  const active_id = document.activeElement.id;
+  if (!active_id) {
+    alert(`No input box element is selected.`);
+    return;
+  }
+  const tsv = await read_clipboard();
+  if (!tsv) {
+    alert(`Could not read or parse clipboard data.`);
+    return;
+  }
+  if (tsv.dims.col > 1) {
+    alert(`Paste to tabs only allows ranges of 1 column.`);
+    return;
+  }
+  const tabs = await get_active_tab();
+  const limit = Math.min(tsv.dims.row, tabs.len);
+  if (tabs.len < tsv.dims.row) {
+    console.warn(`More data in clipboard (${tsv.dims.row}) than available tabs (${tabs.len}).`);
+  }
+  for (let i = 0; i < limit; i++) {
+    const data = tsv.data[i][0];
+    const isZeroOrEmpty = data === "" || parseFloat(data) === 0;
+    if (ignore_zeros && isZeroOrEmpty) {
+      continue;
+    }
+    try {
+      await set_tab_value(i, data, active_id);
+    } catch (err) {
+      console.error(`Failed to set value on tab ${i}:`, err);
+    }
+  }
+}
+
+async function sum_all_tabs() {
+  const active_id = document.activeElement.id;
+  if (!active_id) {
+    alert(`No input box element is selected.`);
+    return;
+  }
+  let rolling_sum = 0;
+  const tabs = await get_active_tab();
+  for (let i = 0; i < tabs.len; i++) {
+    const val = await get_tab_value(i, active_id);
+    const num = parseFloat(val.replace(/,/g, ''));
+    if (!isNaN(num)) {
+      rolling_sum += num;
+    }
+  }
+  alert(`Total Sum across all tabs: ${rolling_sum.toLocaleString()}`);
+}
+
+async function clear_all_tabs() {
+  const active_id = document.activeElement.id;
+  if (!active_id) {
+    alert(`No input box element is selected.`);
+    return;
+  }
+  const tabs = await get_active_tab();
+  for (let i = 0; i < tabs.len; i++) {
+    await set_tab_value(i, "", active_id);
   }
 }
