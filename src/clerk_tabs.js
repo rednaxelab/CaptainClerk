@@ -3,6 +3,8 @@ const GLOBAL_TIMEOUT = 50; // allow for more if missing switches.
 
 /***************************HOTKEY REGISTRATION*********************************************/
 document.addEventListener('keydown', async (e) => {
+  // Check for auto-firing multiple times (holding keys)
+  if (e.repeat) return;
   // Normalize key for comparison
   const key = e.key.toLowerCase();
   // Ctrl + Shift + Down Arrow

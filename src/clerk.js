@@ -50,16 +50,6 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
       e.stopImmediatePropagation();
       delete_active_row();
     }
-    // Ctrl + Shift + Down Arrow
-    if (e.ctrlKey && e.shiftKey && key === 'arrowdown') {
-      e.preventDefault();
-      await move_tab(1);
-    }
-    // Ctrl + Shift + Up Arrow
-    if (e.ctrlKey && e.shiftKey && key === 'arrowup') {
-      e.preventDefault();
-      await move_tab(-1);
-    }
   }, true);
 }
 
@@ -401,26 +391,5 @@ async function delete_active_row() {
     if (confirmBtn) {
       confirmBtn.click();
     }
-  }
-}
-
-/*********************FUNCTIONS FOR TAB NAVIGATION****************************/
-/**
- * Simple Tab Navigation for ProConnect.
- * @param {number} offset - 1 for Next, -1 for Previous
- */
-function move_tab(offset) {
-  // IMPLEMENTATION: needs to select element based on the last element selected after switching tabs.
-  const tabsBar = document.querySelector('section[id*="tabsbar"]');
-  if (!tabsBar) return;
-
-  const localTabs = Array.from(tabsBar.querySelectorAll('button[role="tab"]'));
-  const activeIndex = localTabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
-  
-  const targetIdx = activeIndex + offset;
-
-  // Ensure we are within bounds
-  if (targetIdx >= 0 && targetIdx < localTabs.length) {
-    localTabs[targetIdx].click();
   }
 }
