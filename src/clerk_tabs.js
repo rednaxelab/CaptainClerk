@@ -42,6 +42,11 @@ document.addEventListener('keydown', async (e) => {
     e.preventDefault();
     await dump_full_list_data();
   }
+  // Alt + Shift + C (Copy all tab values for active input, one per line, to clipboard -- backward for reconciliation)
+  if (!(cmdOrCtrl) && e.altKey && e.shiftKey && e.code === 'KeyC') {
+    e.preventDefault();
+    await dump_all_tab_values();
+  }
 }, true);
 
 /***************************MAIN IMPLEMENTATION FUNCTIONS***********************************/
@@ -237,6 +242,10 @@ async function read_clipboard() {
 
 async function move_tab(increment) {
   const active_id = document.activeElement.id;
+  if (!active_id) {
+    alert(`No input box element is selected.`);
+    return;
+  }
   const current = await get_active_tab();
   let idx = current.idx + increment;
   if ((idx + 1) > current.len) {
@@ -338,6 +347,34 @@ async function clear_all_tabs() {
   const tabs = await get_active_tab();
   for (let i = 0; i < tabs.len; i++) {
     await set_tab_value(i, "", active_id);
+  }
+}
+
+async function dump_all_tab_values() {
+  const active_id = document.activeElement.id;
+  if (!active_id) {
+    alert(`No input box element is selected.`);
+    return;
+  }
+  const tabs = await get_active_tab();
+  const values = [];
+  // NOTE: this leaves the tab selector on the last tab visited (same trade-off as sum_all_tabs).
+  for (let i = 0; i < tabs.len; i++) {
+    try {
+      const val = await get_tab_value(i, active_id);
+      values.push(val ?? '');
+    } catch (err) {
+      console.error(`Failed to read value on tab ${i}:`, err);
+      values.push('');
+    }
+  }
+  const tsv_string = values.join('\n');
+  try {
+    await navigator.clipboard.writeText(tsv_string);
+    alert('Tab values successfully copied to clipboard.');
+  } catch (err) {
+    console.error(err);
+    alert('Failed to copy to clipboard. Ensure the page has focus.');
   }
 }
 

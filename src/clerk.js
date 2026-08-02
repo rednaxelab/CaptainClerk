@@ -28,7 +28,7 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
       e.preventDefault();
       enter_data();
     }
-    // Alt + Shift + C (Copy Data)
+    // Ctrl/Cmd + Shift + C (Copy Data)
     if (cmdOrCtrl && e.shiftKey && e.code === 'KeyC') {
       e.preventDefault();
       copy_data();

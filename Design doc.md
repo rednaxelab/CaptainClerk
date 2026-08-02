@@ -10,7 +10,7 @@
 | :----: | :---------: |
 |`CTRL+SHIFT+L`|On tax return page, hide sidebar.|
 |`CTRL+SHIFT+V`|Custom paste. Probably coolest part of it.|
-|`CTRL+SHIFT+C` | Custom copy! Opposite of the paste--grabs all values to paste to spreadsheet.|
+|`ALT+SHIFT+C` | Custom copy! Opposite of the paste--grabs all values to paste to spreadsheet.|
 |`ALT+SHIFT+END`|Clears all data in sensed grid of inputs|
 |`ALT+SHIFT+DEL`|Delete all row data until it's gone|
 |`ALT+DEL`|Delete current row|
@@ -24,10 +24,11 @@
 | `ALT+SHIFT+S` |Sum all boxes by tab.|
 | `ALT+SHIFT+0` |Clear all boxes by tab.|
 | `ALT+SHIFT+L` |Copy all "View All" list data to clipboard in TSV Format.|
+| `ALT+SHIFT+C` |Copy all tab values (for active input) to clipboard, one per line -- backward, for reconciliation.|
 
 ## Things to implement
 
-- [ ] Get all K-1 input data (***Clerk Tabs***) and copy it into clipboard (basically going backward for comparison). Possilbe `alt+shift+c`?
+- [x] Get all K-1 input data (***Clerk Tabs***) and copy it into clipboard (basically going backward for comparison). Implemented as `alt+shift+c` (Clerk's own copy is `ctrl/cmd+shift+c`, so no collision).
 - [ ] Add interaction with checkboxes?
 - [ ] Add ClerkTabs integration with dropdown boxes we just did.
 - [ ] UI maybe from extension shortcut in toolbar that shows all current hotkeys.
