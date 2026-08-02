@@ -4,8 +4,6 @@
 
 ***Clerk*** class: Is basically some simple functionality with JS and DOM to make my life easier.
 
-***Captain*** class: Is playwright stuff (more complex) -- built right into the browser and involved need for more advanced scraping, etc. This is currently unimplemented. I want to look at `Playwright-CRX` for this.
-
 ## Currently Implemented Hotkeys for *Clerk*
 
 | HOTKEY | DESCRIPTION |
@@ -29,8 +27,7 @@
 
 ## Things to implement
 
-- [ ] Make it work on mac with command button in place of control button?
-- [ ] Add interaction with dropdown menus and possibly checkboxes?
+- [ ] Add interaction with checkboxes?
 - [ ] Parse clipboard numbers such as `( 1,254.23 )` to compatible entry such as `1254.23` or `1254`. Not sure how opinionated I was about decimals.
 - [ ] Get all K-1 input data (***Clerk Tabs***) and copy it into clipboard (basically going backward for comparison). Possilbe `alt+shift+c`?
 - [ ] BUG: Look at JLIN. `ctrl/cmd+shift+up/down` bugs out as I think multiple K-1s with same name. Need to address. It works on main k-1 input screen, but did not somewhere on the main tab (where you select taxpayer vs spouse, etc and enter EIN).

@@ -133,20 +133,41 @@ class Clerk {
   #refresh_inputs() {
     const rows = this.#root.querySelectorAll('tr');
     this.#inputs = Array.from(rows).map(row => {
-      const allInputs = Array.from(row.querySelectorAll('input'));
-      return allInputs.filter(input => !input.type || input.type === 'text');
+      const allElements = Array.from(row.querySelectorAll('input, select'));
+      // Capture SELECT tags and TEXT inputs
+      return allElements.filter(el =>
+        el.tagName === 'SELECT' || (el.tagName === 'INPUT' && (!el.type || el.type === 'text'))
+      );
     });
   }
 
   async set_input_value(text, element) {
     element.focus();
-    // IMPLEMENTATION: We use legacy `execCommand` below... because it works. May want to play with other approaches.
-    element.setSelectionRange(0, element.value.length); // select all text
-    document.execCommand('insertText', false, text); // basically we're pasting new text
-    // Necessary events to commit
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    // Give React time to "see" the final value before we kill focus
+    if (element.tagName === 'SELECT') {
+      const options = Array.from(element.options);
+      const searchStr = text.trim().toLowerCase();
+      // Match by exact value (e.g., "1"), exact text (e.g., "1 = Schedule A"), or prefix
+      const targetOption = options.find(opt =>
+        opt.value.toLowerCase() === searchStr ||
+        opt.text.trim().toLowerCase() === searchStr ||
+        opt.text.trim().toLowerCase().startsWith(`${searchStr} =`) ||
+        opt.text.trim().toLowerCase().startsWith(`${searchStr}=`)
+      );
+      if (targetOption) {
+        element.value = targetOption.value;
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    } else {
+      let valToInsert = text;
+      // If passing a combined string (e.g., "91 = Straight Line") into a numeric input, extract just the number
+      if (valToInsert.includes('=') && element.classList.toString().toLowerCase().includes('numeric')) {
+        valToInsert = valToInsert.split('=')[0].trim();
+      }
+      element.setSelectionRange(0, element.value.length);
+      document.execCommand('insertText', false, valToInsert);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     await new Promise(r => setTimeout(r, 5));
     element.blur();
   }
@@ -305,13 +326,15 @@ class Clerk {
 
   async clear_input(element) {
     element.focus();
-    // Select everything currently in the field
-    element.setSelectionRange(0, element.value.length);
-    // Replace selection with nothing
-    document.execCommand('insertText', false, '');
-    // Dispatch events so the UI updates (e.g., character counts, validation)
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
+    if (element.tagName === 'SELECT') {
+      element.selectedIndex = 0;
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      element.setSelectionRange(0, element.value.length);
+      document.execCommand('insertText', false, '');
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     await new Promise(r => setTimeout(r, 5));
     element.blur();
   }
@@ -328,8 +351,28 @@ class Clerk {
   }
 
   async export_to_clipboard() {
-    const tsvString = this.#inputs
-      .map(row => row.map(input => input.value).join('\t'))
+    // Filter out rows where every input is empty and every select is on "Select"
+    const active_rows = this.#inputs.filter(row => {
+      return row.some(el => {
+        if (el.tagName === 'SELECT') {
+          const text = el.options.length > 0 && el.selectedIndex >= 0
+            ? el.options[el.selectedIndex].text.trim().toLowerCase()
+            : '';
+          return text !== '' && text !== 'select';
+        }
+        return el.value.trim() !== '';
+      });
+    });
+    const tsvString = active_rows
+      .map(row => row.map(el => {
+        if (el.tagName === 'SELECT') {
+          const text = el.options.length > 0 && el.selectedIndex >= 0
+            ? el.options[el.selectedIndex].text
+            : '';
+          return text.trim().toLowerCase() === 'select' ? '' : text;
+        }
+        return el.value;
+      }).join('\t'))
       .join('\n');
     try {
       await navigator.clipboard.writeText(tsvString);
