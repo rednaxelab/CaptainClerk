@@ -3,42 +3,42 @@ const GLOBAL_TIMEOUT = 50; // allow for more if missing switches.
 
 /***************************HOTKEY REGISTRATION*********************************************/
 document.addEventListener('keydown', async (e) => {
+  // Allow for MacOS CMD (metaKey) key OR control key
+  const cmdOrCtrl = e.ctrlKey || e.metaKey;
   // Check for auto-firing multiple times (holding keys)
   if (e.repeat) return;
-  // Normalize key for comparison
-  const key = e.key.toLowerCase();
   // Ctrl + Shift + Down Arrow (Navigate one tab left)
-  if (e.ctrlKey && e.shiftKey && key === 'arrowdown') {
+  if (cmdOrCtrl && e.shiftKey && e.code === 'ArrowDown') {
     e.preventDefault();
     await move_tab(1);
   }
   // Ctrl + Shift + Up Arrow (Navigate one tab right)
-  if (e.ctrlKey && e.shiftKey && key === 'arrowup') {
+  if (cmdOrCtrl && e.shiftKey && e.code === 'ArrowUp') {
     e.preventDefault();
     await move_tab(-1);
   }
   // Alt + Shift + V (Paste TSV data in tabs -- ignoring zeroes)
-  if (e.altKey && e.shiftKey && key === 'v') {
+  if (!(cmdOrCtrl) && e.altKey && e.shiftKey && e.code === 'KeyV') {
     e.preventDefault();
     await paste_to_tabs(true);
   }
   // Ctrl + Alt + Shift + V (Paste TSV data in tabs -- enforcing zeroes and "")
-  if (e.ctrlKey && e.altKey && e.shiftKey && key === 'v') {
+  if (cmdOrCtrl && e.altKey && e.shiftKey && e.code === 'KeyV') {
     e.preventDefault();
     await paste_to_tabs(false);
   }
   // Alt + Shift + S (Sum all data)
-  if (e.altKey && e.shiftKey && key === 's') {
+  if (e.altKey && e.shiftKey && e.code === 'KeyS') {
     e.preventDefault();
     await sum_all_tabs();
   }
   // Alt + Shift + 0 (Clear data from all tabs same element as active element)
-  if (e.altKey && e.shiftKey && (e.key === '0' || e.key === ')')) {
+  if (e.altKey && e.shiftKey && e.code === 'Digit0') {
     e.preventDefault();
     await clear_all_tabs();
   }
   // Alt + Shift + L (Create TSV in clipboard of list data (K-1s, etc))
-  if (e.altKey && e.shiftKey && key === 'l') {
+  if (e.altKey && e.shiftKey && e.code === 'KeyL') {
     e.preventDefault();
     await dump_full_list_data();
   }

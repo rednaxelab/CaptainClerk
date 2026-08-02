@@ -2,11 +2,11 @@ const url_params = new URLSearchParams(window.location.search);
 const tax_return_window = url_params.get('splitViewEnabled') === 'true';
 let tax_return_side_bar_hidden = false;
 
+
 if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax return viewer
   document.addEventListener('keydown', (e) => {
-    const key = e.key.toLowerCase();
     // Ctrl + Shift + L (Hides sidebar on tax return tab)
-    if (e.ctrlKey && e.shiftKey && key === 'l') {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyL') {
       const sidebar = document.querySelector('div.sidebar');
       if (sidebar) {
         if (tax_return_side_bar_hidden) {
@@ -21,31 +21,31 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
   }, true);
 } else { // these is normal proconnect extension functionality
   document.addEventListener('keydown', async (e) => {
-    // Normalize key for comparison
-    const key = e.key.toLowerCase();
+    // Allow for MacOS CMD (metaKey) key OR control key
+    const cmdOrCtrl = e.ctrlKey || e.metaKey;
     // Ctrl + Shift + V (Paste Data)
-    if (e.ctrlKey && e.shiftKey && key === 'v') {
+    if (cmdOrCtrl && e.shiftKey && e.code === 'KeyV') {
       e.preventDefault();
       enter_data();
     }
     // Alt + Shift + C (Copy Data)
-    if (e.altKey && e.shiftKey && key === 'c') {
+    if (e.altKey && e.shiftKey && e.code === 'KeyC') {
       e.preventDefault();
       copy_data();
     }
     // Alt + Shift + 0 (clear out grid of inputs)
-    else if (e.altKey && e.shiftKey && key === 'end') {
+    else if (e.altKey && e.shiftKey && e.code === 'End') {
       e.preventDefault();
       clear_data();
     }
     // Alt + Shift + Delete (Delete Until Empty)
-    else if (e.altKey && e.shiftKey && key === 'delete') {
+    else if (e.altKey && e.shiftKey && e.code === 'Delete') {
       e.preventDefault();
       e.stopImmediatePropagation();
       delete_until_empty();
     }
-    // Alt + Shift + D (Delete Active Row)
-    else if (e.altKey && key === 'delete') {
+    // Alt + Delete (Delete Active Row)
+    else if (e.altKey && e.code === 'Delete') {
       e.preventDefault();
       e.stopImmediatePropagation();
       delete_active_row();
