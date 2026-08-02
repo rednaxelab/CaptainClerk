@@ -27,10 +27,9 @@
 
 ## Things to implement
 
-- [ ] Add interaction with checkboxes?
-- [ ] Parse clipboard numbers such as `( 1,254.23 )` to compatible entry such as `1254.23` or `1254`. Not sure how opinionated I was about decimals.
 - [ ] Get all K-1 input data (***Clerk Tabs***) and copy it into clipboard (basically going backward for comparison). Possilbe `alt+shift+c`?
-- [ ] BUG: Look at JLIN. `ctrl/cmd+shift+up/down` bugs out as I think multiple K-1s with same name. Need to address. It works on main k-1 input screen, but did not somewhere on the main tab (where you select taxpayer vs spouse, etc and enter EIN).
+- [ ] Add interaction with checkboxes?
+- [ ] Add ClerkTabs integration with dropdown boxes we just did.
 - [ ] UI maybe from extension shortcut in toolbar that shows all current hotkeys.
 
 ### <u>Other wish list items</u>

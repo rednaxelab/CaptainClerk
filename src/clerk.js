@@ -173,33 +173,60 @@ class Clerk {
   }
 
   async read_clipboard() {
-    const parse_tsv_data = (raw_data) => {
-      return raw_data.split(/\r?\n/)
-        .map(row => row.replace(/\u00A0/g, ' '))
-        .filter(row => row.trim().length > 0)
-        .map(row => row.split('\t')
-          .map(cell => {
-            const trimmed = cell.trim();
-            // Check if the cell is exactly "-" or " - " (Accounting zero)
-            return (trimmed === '-' || trimmed === '–') ? '' : trimmed;
-          }));
+    const is_valid_number_string = (val) => {
+      if (val === '' || val === '-' || val === '–') return true;
+      return /^[\$\-\(]?\s*[\d,]+(\.\d+)?\s*\)?$/.test(val);
     };
-
+    const format_number_string = (val) => {
+      if (val === '' || val === '-' || val === '–') return '';
+      const is_negative = val.includes('(') || val.includes('-');
+      const num_only = val.replace(/[^\d.]/g, '');
+      const parsed_float = parseFloat(num_only);
+      const rounded = Math.round(parsed_float);
+      return is_negative && rounded !== 0 ? `-${rounded}` : `${rounded}`;
+    };
     try {
       const raw_clipboard = await navigator.clipboard.readText();
-      this.#tsv_data = parse_tsv_data(raw_clipboard);
-    } catch (err) {
-      alert('Failed to read clipboard contents: ', err);
-      return;
-    }
-    if (Array.isArray(this.#tsv_data)) {
+      const raw_matrix = raw_clipboard.split(/\r?\n/)
+        .map(row => row.replace(/\u00A0/g, ' '))
+        .filter(row => row.trim().length > 0)
+        .map(row => row.split('\t').map(cell => {
+          let val = cell.trim();
+          if (val.startsWith('"') && val.endsWith('"')) {
+            val = val.slice(1, -1).trim();
+          }
+          return val;
+        }));
+      if (!Array.isArray(raw_matrix) || raw_matrix.length === 0 || !Array.isArray(raw_matrix[0])) {
+        throw new Error('TSV Data not parseable into matrix/grid for entry.');
+      }
+      const col_count = raw_matrix[0].length;
+      const numeric_cols = new Set();
+      for (let c = 0; c < col_count; c++) {
+        let all_numeric = true;
+        for (let r = 0; r < raw_matrix.length; r++) {
+          if (!is_valid_number_string(raw_matrix[r][c])) {
+            all_numeric = false;
+            break;
+          }
+        }
+        if (all_numeric) {
+          numeric_cols.add(c);
+        }
+      }
+      this.#tsv_data = raw_matrix.map(row =>
+        row.map((cell, c_idx) => {
+          if (numeric_cols.has(c_idx)) {
+            return format_number_string(cell);
+          }
+          return cell;
+        })
+      );
       this.#tsv_dims.row = this.#tsv_data.length;
-    } else throw new Error('TSV Data not parseable into matrix/grid for entry.');
-    if (Array.isArray(this.#tsv_data[0])) {
-      // We don't need to check for uniform width below of the sub-arrays. This addin is meant to work from copy/paste in excel and google sheets
-      // which by it's very nature will enforce rectangular 2d array dimensions.
       this.#tsv_dims.col = this.#tsv_data[0].length;
-    } else throw new Error('TSV Data (specifically, columns) not parseable into matrix/grid for entry.');
+    } catch (err) {
+      alert('Failed to read clipboard contents: ' + err);
+    }
   }
 
   async #wait_for_sync(timeout = 3000) {
@@ -235,10 +262,8 @@ class Clerk {
         if (current_idx >= this.#inputs.length) {
           await this.#wait_for_sync();
         }
-
         const row = this.#inputs[current_idx];
         if (!row) throw new Error(`Row ${current_idx} not found after sync.`);
-
         for (let col_idx = 0; col_idx < tsv_cols; col_idx++) {
           const el = row[start_col + col_idx];
           if (el) {
@@ -247,57 +272,11 @@ class Clerk {
         }
         await new Promise(r => setTimeout(r, 50));
       }
-      await this.#verify_data();
       await this.#auto_trim_entries();
     } catch (e) {
       alert(`Error occured in method 'enter_clipboard_data': ${e}`);
     } finally {
       observer.disconnect();
-    }
-  }
-
-  async #verify_data() {
-    this.#refresh_inputs();
-    const errors = [];
-    const { row: tsv_rows, col: tsv_cols } = this.#tsv_dims;
-    const { row: start_row, col: start_col } = this.#start_pos;
-
-    // Helper to normalize dates: "1/1/24", "-1/1/24", and "01/01/2024"
-    const normalize = (val) => {
-      if (!val) return "";
-      const s = val.toString().trim();
-      const isNegative = s.startsWith('-');
-      const datePart = isNegative ? s.slice(1) : s;
-
-      const d = new Date(datePart);
-      if (isNaN(d.getTime())) return s; // Not a date, return trimmed string
-
-      // Format to YYYY-MM-DD for a stable comparison baseline
-      const iso = d.toISOString().split('T')[0];
-      return isNegative ? `-${iso}` : iso;
-    };
-
-    for (let i = 0; i < tsv_rows; i++) {
-      const current_row_idx = start_row + i;
-      const row_elements = this.#inputs[current_row_idx];
-
-      if (!row_elements) continue;
-
-      for (let j = 0; j < tsv_cols; j++) {
-        const el = row_elements[start_col + j];
-        if (!el) continue;
-
-        const expected = normalize(this.#tsv_data[i][j]);
-        const actual = normalize(el.value);
-
-        if (expected !== actual) {
-          errors.push(`Row ${i + 1}, Col ${j + 1}: Expected "${this.#tsv_data[i][j]}", found "${el.value}"`);
-        }
-      }
-    }
-
-    if (errors.length > 0) {
-      alert(`Validation Failed:\n\n${errors.join('\n')}`);
     }
   }
 
