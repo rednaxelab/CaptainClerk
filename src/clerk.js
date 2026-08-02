@@ -29,7 +29,7 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
       enter_data();
     }
     // Alt + Shift + C (Copy Data)
-    if (e.altKey && e.shiftKey && e.code === 'KeyC') {
+    if (cmdOrCtrl && e.shiftKey && e.code === 'KeyC') {
       e.preventDefault();
       copy_data();
     }

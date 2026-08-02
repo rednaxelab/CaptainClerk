@@ -164,14 +164,56 @@ function wait_for_element(selector, timeout = 2000) {
 }
 
 async function read_clipboard() {
-  const parse_tsv_data = (raw_data) => {
-    return raw_data.split(/\r?\n/)
-      .filter(row => row.trim().length > 0)
-      .map(row => row.split('\t').map(cell => {
-        const trimmed = cell.replace(/\u00A0/g, ' ').trim();
-        return (trimmed === '-' || trimmed === '–') ? '' : trimmed;
-      }));
+  // Matches Excel's parenthesis-negative format e.g. "(1.00)" and optional "$", commas, decimals
+  const is_valid_number_string = (val) => {
+    if (val === '' || val === '-' || val === '–') return true;
+    return /^[\$\-\(]?\s*[\d,]+(\.\d+)?\s*\)?$/.test(val);
   };
+  // Converts "(1.00)" -> "-1", "2.00" -> "2", strips $ and commas, rounds to whole number
+  const format_number_string = (val) => {
+    if (val === '' || val === '-' || val === '–') return '';
+    const is_negative = val.includes('(') || val.includes('-');
+    const num_only = val.replace(/[^\d.]/g, '');
+    const parsed_float = parseFloat(num_only);
+    const rounded = Math.round(parsed_float);
+    return is_negative && rounded !== 0 ? `-${rounded}` : `${rounded}`;
+  };
+
+  const parse_tsv_data = (raw_data) => {
+    const rows = raw_data.split(/\r?\n/);
+    // drop only a single trailing blank line from the copy, not blanks in general
+    if (rows.length > 1 && rows[rows.length - 1] === '') {
+      rows.pop();
+    }
+    // Build raw matrix: strip non-breaking spaces, trim, and unwrap Excel's quoted cells
+    const raw_matrix = rows.map(row => row.split('\t').map(cell => {
+      let val = cell.replace(/\u00A0/g, ' ').trim();
+      if (val.startsWith('"') && val.endsWith('"')) {
+        val = val.slice(1, -1).trim();
+      }
+      return val;
+    }));
+
+    // Per-column pass: only reformat columns that are cleanly numeric.
+    // Blank-only columns and mixed/text columns are left untouched (no zeroing, no throwing).
+    const col_count = raw_matrix[0].length;
+    for (let c = 0; c < col_count; c++) {
+      const col_values = raw_matrix.map(row => row[c]);
+      const any_numeric_like = col_values.some(v => v !== '' && v !== '-' && v !== '–');
+      if (!any_numeric_like) {
+        continue; // all blank (or just dashes) -- nothing to format
+      }
+      const all_numeric = col_values.every(is_valid_number_string);
+      if (!all_numeric) {
+        continue; // mixed/text column -- leave as-is
+      }
+      raw_matrix.forEach(row => {
+        row[c] = format_number_string(row[c]);
+      });
+    }
+    return raw_matrix;
+  };
+
   let raw_clipboard;
   try {
     raw_clipboard = await navigator.clipboard.readText();

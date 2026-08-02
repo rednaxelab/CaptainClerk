@@ -10,7 +10,7 @@
 | :----: | :---------: |
 |`CTRL+SHIFT+L`|On tax return page, hide sidebar.|
 |`CTRL+SHIFT+V`|Custom paste. Probably coolest part of it.|
-| `ALT+SHIFT+C` | Custom copy! Opposite of the paste--grabs all values to paste to spreadsheet.|
+|`CTRL+SHIFT+C` | Custom copy! Opposite of the paste--grabs all values to paste to spreadsheet.|
 |`ALT+SHIFT+END`|Clears all data in sensed grid of inputs|
 |`ALT+SHIFT+DEL`|Delete all row data until it's gone|
 |`ALT+DEL`|Delete current row|
@@ -38,4 +38,3 @@
 - [ ] Something that will toggle the possible inputs and style them (like red box around). This will be useful to see what boxes can be copied and pasted from, to build a schema for import with right columns, etc.
 - [ ] Maybe some UI and UX--currently, everything is set up using hotkeys which are fine, but may be hard for my older partner.
 - [ ] For the paste to tabs (***Clerk Tabs***), I need a paste that starts where you're currently to where you can append to data that's already there without changing anything before where you're at.
-- [ ] The normal clerk paste (not tabs) short circuits if you copy a blank cell from excel. I think that is because it is left out of TSV. 
