@@ -149,7 +149,6 @@ async function set_autocomplete_value(text, element, autocomplete_button) {
   try {
     flyout = await wait_for_element(`[data-flyout-area="${flyout_id}"]`, 1500);
   } catch (err) {
-    console.warn(`Autocomplete list never appeared for "${search_code}":`, err);
     return;
   }
 
@@ -163,7 +162,6 @@ async function set_autocomplete_value(text, element, autocomplete_button) {
   });
 
   if (!target_item) {
-    console.warn(`No autocomplete match found for code "${search_code}".`);
     return;
   }
 
@@ -351,7 +349,6 @@ async function read_clipboard() {
   try {
     raw_clipboard = await navigator.clipboard.readText();
   } catch (err) {
-    console.error('Failed to read clipboard contents:', err);
     return null; // Return null instead of undefined for explicit checking
   }
   const data = parse_tsv_data(raw_clipboard);
@@ -443,9 +440,6 @@ async function paste_to_tabs(ignore_zeros) {
   }
   const tabs = await get_active_tab();
   const limit = Math.min(tsv.dims.row, tabs.len);
-  if (tabs.len < tsv.dims.row) {
-    console.warn(`More data in clipboard (${tsv.dims.row}) than available tabs (${tabs.len}).`);
-  }
   for (let i = 0; i < limit; i++) {
     const data = tsv.data[i][0];
     const isZeroOrEmpty = data === "" || parseFloat(data) === 0;
@@ -455,7 +449,6 @@ async function paste_to_tabs(ignore_zeros) {
     try {
       await set_tab_value(i, data, active_id);
     } catch (err) {
-      console.error(`Failed to set value on tab ${i}:`, err);
     }
   }
 }
@@ -504,7 +497,6 @@ async function dump_all_tab_values() {
       const val = await get_tab_value(i, active_id);
       values.push(val ?? '');
     } catch (err) {
-      console.error(`Failed to read value on tab ${i}:`, err);
       values.push('');
     }
   }
@@ -513,7 +505,6 @@ async function dump_all_tab_values() {
     await navigator.clipboard.writeText(tsv_string);
     alert('Tab values successfully copied to clipboard.');
   } catch (err) {
-    console.error(err);
     alert('Failed to copy to clipboard. Ensure the page has focus.');
   }
 }
@@ -526,7 +517,6 @@ async function dump_full_list_data() {
     await navigator.clipboard.writeText(tsv_string);
     alert('Tab list successfully copied to clipboard.');
   } catch (err) {
-    console.error(err);
     alert('Failed to copy to clipboard. Ensure the page has focus.');
   }
 }

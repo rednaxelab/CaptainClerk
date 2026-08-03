@@ -59,7 +59,6 @@ async function enter_data() {
     await clerk.init({ read_clipboard: true });
     await clerk.enter_clipboard_data();
   } catch (err) {
-    console.error("Clerk enter data aborted:", err.message);
   }
 }
 
@@ -69,7 +68,6 @@ async function copy_data() {
     await clerk.init({ read_clipboard: false });
     await clerk.export_to_clipboard();
   } catch (err) {
-    console.error("Clerk export aborted:", err.message);
   }
 }
 
@@ -79,7 +77,6 @@ async function clear_data() {
     await clerk.init({ read_clipboard: false });
     await clerk.clear_all_inputs();
   } catch (err) {
-    console.error("Clerk clear aborted:", err.message);
   }
 }
 
@@ -222,7 +219,6 @@ class Clerk {
     try {
       flyout = await wait_for_element(`[data-flyout-area="${flyout_id}"]`, 1500);
     } catch (err) {
-      console.warn(`Autocomplete list never appeared for "${search_code}":`, err);
       return;
     }
 
@@ -236,7 +232,6 @@ class Clerk {
     });
 
     if (!target_item) {
-      console.warn(`No autocomplete match found for code "${search_code}".`);
       return;
     }
 
@@ -360,14 +355,12 @@ class Clerk {
             // field was ACTUALLY focused previously -- corrupting that earlier column instead.
             // Same guard clear_all_inputs already applies before calling clear_input.
             if (el.disabled || el.readOnly) {
-              console.warn(`Skipping read-only/disabled field at row ${current_idx}, col ${start_col + col_idx} (likely auto-derived).`);
               continue;
             }
             try {
               await this.set_input_value(this.#tsv_data[i][col_idx], el);
             } catch (err) {
               // Don't let one bad cell abort the whole paste.
-              console.error(`Failed to set value on row ${current_idx}, col ${start_col + col_idx}:`, err);
             }
           }
         }
