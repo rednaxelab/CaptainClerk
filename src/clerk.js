@@ -23,25 +23,15 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
   document.addEventListener('keydown', async (e) => {
     // Allow for MacOS CMD (metaKey) key OR control key
     const cmdOrCtrl = e.ctrlKey || e.metaKey;
-    // Ctrl/Cmd + Shift + V (Legacy Paste Data -- ignores dropdowns, always plain text)
-    if (cmdOrCtrl && !e.altKey && e.shiftKey && e.code === 'KeyV') {
+    // Ctrl/Cmd + Shift + V (Paste Data)
+    if (cmdOrCtrl && e.shiftKey && e.code === 'KeyV') {
       e.preventDefault();
-      enter_data(true);
+      enter_data();
     }
-    // Ctrl/Cmd + Alt/Option + Shift + V (Paste Data -- honors dropdowns)
-    else if (cmdOrCtrl && e.altKey && e.shiftKey && e.code === 'KeyV') {
+    // Ctrl/Cmd + Shift + C (Copy Data)
+    else if (cmdOrCtrl && e.shiftKey && e.code === 'KeyC') {
       e.preventDefault();
-      enter_data(false);
-    }
-    // Ctrl/Cmd + Shift + C (Legacy Copy Data -- ignores dropdowns, raw values only)
-    else if (cmdOrCtrl && !e.altKey && e.shiftKey && e.code === 'KeyC') {
-      e.preventDefault();
-      copy_data(true);
-    }
-    // Ctrl/Cmd + Alt/Option + Shift + C (Copy Data -- honors dropdowns)
-    else if (cmdOrCtrl && e.altKey && e.shiftKey && e.code === 'KeyC') {
-      e.preventDefault();
-      copy_data(false);
+      copy_data();
     }
     // Alt + Shift + 0 (clear out grid of inputs)
     else if (e.altKey && e.shiftKey && e.code === 'End') {
@@ -63,25 +53,21 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
   }, true);
 }
 
-async function enter_data(legacy = false) {
+async function enter_data() {
   const clerk = new Clerk();
   try {
     await clerk.init({ read_clipboard: true });
-    await clerk.enter_clipboard_data(legacy);
+    await clerk.enter_clipboard_data();
   } catch (err) {
     console.error("Clerk enter data aborted:", err.message);
   }
 }
 
-async function copy_data(legacy = false) {
+async function copy_data() {
   const clerk = new Clerk();
   try {
     await clerk.init({ read_clipboard: false });
-    if (legacy) {
-      await clerk.export_to_clipboard_legacy();
-    } else {
-      await clerk.export_to_clipboard();
-    }
+    await clerk.export_to_clipboard();
   } catch (err) {
     console.error("Clerk export aborted:", err.message);
   }
@@ -337,19 +323,21 @@ class Clerk {
     return observer;
   }
 
-  // Verbatim pre-dropdown-support implementation (commit before 9f7b3e1 "added dropdown menu
-  // interaction"). Always plain text insertion, no SELECT/autocomplete branching.
-  async set_input_value_legacy(text, element) {
-    element.focus();
-    element.setSelectionRange(0, element.value.length);
-    document.execCommand('insertText', false, text);
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise(r => setTimeout(r, 5));
-    element.blur();
+  // Re-fetches a row's elements live from the DOM, using the same filter as #refresh_inputs.
+  // Needed because a cell's tag can change reactively mid-row (e.g. selecting a Schedule
+  // dropdown can turn a disabled placeholder <input> into a live <select>) -- the snapshot
+  // in this.#inputs, taken once per paste run, would still point at the old, now-detached node.
+  #get_live_row_elements(row_idx) {
+    const rows = this.#root.querySelectorAll('tr');
+    const row = rows[row_idx];
+    if (!row) return null;
+    const allElements = Array.from(row.querySelectorAll('input, select'));
+    return allElements.filter(el =>
+      el.tagName === 'SELECT' || (el.tagName === 'INPUT' && (!el.type || el.type === 'text'))
+    );
   }
 
-  async enter_clipboard_data(legacy = false) {
+  async enter_clipboard_data() {
     const observer = this.#start_new_row_observer();
     try {
       const { row: tsv_rows, col: tsv_cols } = this.#tsv_dims;
@@ -362,12 +350,24 @@ class Clerk {
         const row = this.#inputs[current_idx];
         if (!row) throw new Error(`Row ${current_idx} not found after sync.`);
         for (let col_idx = 0; col_idx < tsv_cols; col_idx++) {
-          const el = row[start_col + col_idx];
+          // Re-query live, right before writing -- row[] may be stale if an earlier
+          // column's write in this same row caused the DOM to reactively change.
+          const live_row = this.#get_live_row_elements(current_idx);
+          const el = live_row ? live_row[start_col + col_idx] : undefined;
           if (el) {
-            if (legacy) {
-              await this.set_input_value_legacy(this.#tsv_data[i][col_idx], el);
-            } else {
+            // Disabled/readonly cells (e.g. auto-derived "Activity name or number") silently
+            // reject .focus() with no error, so document.execCommand then inserts into whatever
+            // field was ACTUALLY focused previously -- corrupting that earlier column instead.
+            // Same guard clear_all_inputs already applies before calling clear_input.
+            if (el.disabled || el.readOnly) {
+              console.warn(`Skipping read-only/disabled field at row ${current_idx}, col ${start_col + col_idx} (likely auto-derived).`);
+              continue;
+            }
+            try {
               await this.set_input_value(this.#tsv_data[i][col_idx], el);
+            } catch (err) {
+              // Don't let one bad cell abort the whole paste.
+              console.error(`Failed to set value on row ${current_idx}, col ${start_col + col_idx}:`, err);
             }
           }
         }
@@ -427,19 +427,6 @@ class Clerk {
       if (el && !el.readOnly && !el.disabled) {
         await this.clear_input(el);
       }
-    }
-  }
-
-  // Verbatim pre-dropdown-support implementation (commit before 9f7b3e1 "added dropdown menu
-  // interaction"). Always raw .value, no SELECT text extraction, no blank-row filtering.
-  async export_to_clipboard_legacy() {
-    const tsvString = this.#inputs
-      .map(row => row.map(input => input.value).join('\t'))
-      .join('\n');
-    try {
-      await navigator.clipboard.writeText(tsvString);
-    } catch (err) {
-      alert('Failed to copy to clipboard: ' + err);
     }
   }
 

@@ -38,8 +38,8 @@ document.addEventListener('keydown', async (e) => {
     e.preventDefault();
     await paste_to_tabs(true);
   }
-  // Ctrl + Alt + Shift + V (Paste TSV data in tabs -- enforcing zeroes and "")
-  if (cmdOrCtrl && e.altKey && e.shiftKey && e.code === 'KeyV') {
+  // Alt + Shift + Z (Paste TSV data in tabs -- enforcing zeroes and "")
+  if (!(cmdOrCtrl) && e.altKey && e.shiftKey && e.code === 'KeyZ') {
     e.preventDefault();
     await paste_to_tabs(false);
   }
