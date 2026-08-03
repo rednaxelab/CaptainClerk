@@ -1,6 +1,22 @@
 /********************************GLOBALS****************************************************/
 const GLOBAL_TIMEOUT = 50; // allow for more if missing switches.
 
+// Tracks the last real <input>/<select> that had focus. Needed because closing a flyout
+// (see clerk.js autocomplete handling) can leave document.activeElement pointed at an
+// invisible `[data-focus-guard]` element (no id) used by the flyout's focus trap, which would
+// otherwise make paste_to_tabs think nothing is selected right after a dropdown pick.
+let last_focused_id = '';
+document.addEventListener('focusin', (e) => {
+  const t = e.target;
+  if (t && t.id && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) {
+    last_focused_id = t.id;
+  }
+}, true);
+
+function get_active_input_id() {
+  return document.activeElement?.id || last_focused_id;
+}
+
 /***************************HOTKEY REGISTRATION*********************************************/
 document.addEventListener('keydown', async (e) => {
   // Allow for MacOS CMD (metaKey) key OR control key
@@ -88,8 +104,112 @@ async function click_list_item(element) {
   await new Promise(r => setTimeout(r, GLOBAL_TIMEOUT));
 }
 
+// Confirms a selection in a custom flyout/menu list using the same mousedown/mouseup/click
+// sequence used elsewhere in this file for React-controlled menus (plain .click() alone
+// doesn't reliably register as a "real" user selection).
+async function click_menu_item(element) {
+  element.scrollIntoView({ block: 'center' });
+  const cfg = { bubbles: true, cancelable: true, view: window, buttons: 1, composed: true };
+  element.dispatchEvent(new MouseEvent('mousedown', cfg));
+  await new Promise(r => setTimeout(r, GLOBAL_TIMEOUT));
+  element.dispatchEvent(new MouseEvent('mouseup', cfg));
+  element.click();
+  await new Promise(r => setTimeout(r, GLOBAL_TIMEOUT));
+}
+
+// Handles ProConnect's custom autocomplete/combobox <input> fields (e.g. depreciation method
+// picker). These render a portal-based flyout <ul> keyed by data-flyout-trigger/data-flyout-area
+// as you type -- setting .value directly or pressing Enter doesn't reliably commit the selection
+// (Enter also jumps focus to the next field), so we type the leading code to filter the list,
+// then click the matching rendered option directly.
+async function set_autocomplete_value(text, element, autocomplete_button) {
+  const raw = text.trim();
+  // Options are formatted "NN = Description" -- match/type just the leading code,
+  // same trick used for numeric-classed inputs in clerk.js.
+  const search_code = raw.includes('=') ? raw.split('=')[0].trim() : raw;
+
+  if (search_code === '') {
+    element.setSelectionRange(0, element.value.length);
+    document.execCommand('insertText', false, '');
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 5));
+    element.blur();
+    return;
+  }
+
+  const flyout_id = autocomplete_button.getAttribute('data-flyout-trigger');
+
+  // Typing filters the flyout list live -- this is what actually opens/narrows it.
+  element.setSelectionRange(0, element.value.length);
+  document.execCommand('insertText', false, search_code);
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+
+  let flyout;
+  try {
+    flyout = await wait_for_element(`[data-flyout-area="${flyout_id}"]`, 1500);
+  } catch (err) {
+    console.warn(`Autocomplete list never appeared for "${search_code}":`, err);
+    return;
+  }
+
+  // Selectable leaf items are wrapped in .input-menuWrapper-edafc68 (role="menuitem");
+  // bare <li role="menuitem"> siblings without that wrapper are category headers, not options.
+  const items = Array.from(flyout.querySelectorAll('.input-menuWrapper-edafc68[role="menuitem"]'));
+  const target_item = items.find(item => {
+    const label = item.textContent.trim();
+    const label_code = label.split('=')[0].trim();
+    return label_code.toLowerCase() === search_code.toLowerCase();
+  });
+
+  if (!target_item) {
+    console.warn(`No autocomplete match found for code "${search_code}".`);
+    return;
+  }
+
+  await click_menu_item(target_item);
+}
+
 async function set_input_value(text, element) {
   element.focus();
+  // Ported from Clerk class (clerk.js): native <select> handling.
+  if (element.tagName === 'SELECT') {
+    const options = Array.from(element.options);
+    const search_str = text.trim().toLowerCase();
+    let target_option;
+    if (search_str === '') {
+      // Blank paste/clear -- fall back to the first ("Select"/placeholder) option
+      // since there's usually no option whose value or text is literally empty.
+      target_option = null;
+    } else {
+      target_option = options.find(opt =>
+        opt.value.toLowerCase() === search_str ||
+        opt.text.trim().toLowerCase() === search_str ||
+        opt.text.trim().toLowerCase().startsWith(`${search_str} =`) ||
+        opt.text.trim().toLowerCase().startsWith(`${search_str}=`)
+      );
+    }
+    if (target_option) {
+      element.value = target_option.value;
+    } else if (search_str === '') {
+      element.selectedIndex = 0;
+    }
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 5));
+    element.blur();
+    return;
+  }
+
+  // Custom autocomplete/combobox <input> (e.g. MACRS method picker): detected by a sibling
+  // "autocomplete-control" button. Requires the type-and-click flow above, not a direct
+  // value assignment.
+  const autocomplete_button = element.closest('[class*="Input-wrapper"]')
+    ?.querySelector('[data-testid="autocomplete-control"]');
+  if (autocomplete_button) {
+    await set_autocomplete_value(text, element, autocomplete_button);
+    return;
+  }
+
   // IMPLEMENTATION: We use legacy `execCommand` below... because it works. May want to play with other approaches.
   element.setSelectionRange(0, element.value.length); // select all text
   document.execCommand('insertText', false, text); // basically we're pasting new text
@@ -100,6 +220,7 @@ async function set_input_value(text, element) {
   await new Promise(r => setTimeout(r, 5));
   element.blur();
 }
+
 
 async function get_all_tab_names() {
   try {
@@ -148,6 +269,13 @@ async function get_tab_idx_by_name(name) {
     throw new Error(`Tab with name "${name}" not found: ${names.join(', ')}`);
   }
   return index;
+}
+
+// Builds a selector matching either an <input> or <select> with the given id,
+// escaping the id so special characters (colons, etc.) don't break the selector.
+function build_element_selector(id) {
+  const escaped = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(id) : id;
+  return `input#${escaped}, select#${escaped}`;
 }
 
 function wait_for_element(selector, timeout = 2000) {
@@ -255,19 +383,22 @@ async function move_tab(increment) {
     idx = 0;
   }
   await select_tab_by_index(idx);
-  const selector = `input[id=${active_id}]`;
+  const selector = build_element_selector(active_id);
   const new_tab_element = await wait_for_element(selector);
   if (new_tab_element) {
     new_tab_element.focus();
     new_tab_element.click();
-    new_tab_element.select();
+    // .select() only exists on text inputs/textareas, not <select> elements
+    if (typeof new_tab_element.select === 'function') {
+      new_tab_element.select();
+    }
   }
 }
 
 async function set_tab_value(idx, value, input_element_id) {
   if (!input_element_id) throw new Error(`No input element selected to target with data entry.`);
   await select_tab_by_index(idx);
-  const selector = `input[id=${input_element_id}]`;
+  const selector = build_element_selector(input_element_id);
   const new_tab_element = await wait_for_element(selector);
   if (new_tab_element) {
     new_tab_element.focus();
@@ -279,15 +410,24 @@ async function set_tab_value(idx, value, input_element_id) {
 async function get_tab_value(idx, input_element_id) {
   if (!input_element_id) throw new Error(`No input element selected to target with data entry.`);
   await select_tab_by_index(idx);
-  const selector = `input[id=${input_element_id}]`;
+  const selector = build_element_selector(input_element_id);
   const new_tab_element = await wait_for_element(selector);
-  if (new_tab_element) {
-    return new_tab_element.value;
+  if (!new_tab_element) return undefined;
+  if (new_tab_element.tagName === 'SELECT') {
+    const options = new_tab_element.options;
+    const text = (options.length > 0 && new_tab_element.selectedIndex >= 0)
+      ? options[new_tab_element.selectedIndex].text.trim()
+      : '';
+    // Placeholder option (e.g. "Select") reads back as blank, same as Clerk's export_to_clipboard
+    return text.toLowerCase() === 'select' ? '' : text;
   }
+  return new_tab_element.value;
 }
 
 async function paste_to_tabs(ignore_zeros) {
-  const active_id = document.activeElement.id;
+  // Uses the relaxed lookup since closing a flyout can leave activeElement pointed
+  // at a focus-guard element with no id right after a dropdown pick.
+  const active_id = get_active_input_id();
   if (!active_id) {
     alert(`No input box element is selected.`);
     return;

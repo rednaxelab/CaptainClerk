@@ -23,15 +23,25 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
   document.addEventListener('keydown', async (e) => {
     // Allow for MacOS CMD (metaKey) key OR control key
     const cmdOrCtrl = e.ctrlKey || e.metaKey;
-    // Ctrl + Shift + V (Paste Data)
-    if (cmdOrCtrl && e.shiftKey && e.code === 'KeyV') {
+    // Ctrl/Cmd + Shift + V (Legacy Paste Data -- ignores dropdowns, always plain text)
+    if (cmdOrCtrl && !e.altKey && e.shiftKey && e.code === 'KeyV') {
       e.preventDefault();
-      enter_data();
+      enter_data(true);
     }
-    // Ctrl/Cmd + Shift + C (Copy Data)
-    if (cmdOrCtrl && e.shiftKey && e.code === 'KeyC') {
+    // Ctrl/Cmd + Alt/Option + Shift + V (Paste Data -- honors dropdowns)
+    else if (cmdOrCtrl && e.altKey && e.shiftKey && e.code === 'KeyV') {
       e.preventDefault();
-      copy_data();
+      enter_data(false);
+    }
+    // Ctrl/Cmd + Shift + C (Legacy Copy Data -- ignores dropdowns, raw values only)
+    else if (cmdOrCtrl && !e.altKey && e.shiftKey && e.code === 'KeyC') {
+      e.preventDefault();
+      copy_data(true);
+    }
+    // Ctrl/Cmd + Alt/Option + Shift + C (Copy Data -- honors dropdowns)
+    else if (cmdOrCtrl && e.altKey && e.shiftKey && e.code === 'KeyC') {
+      e.preventDefault();
+      copy_data(false);
     }
     // Alt + Shift + 0 (clear out grid of inputs)
     else if (e.altKey && e.shiftKey && e.code === 'End') {
@@ -53,21 +63,25 @@ if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax
   }, true);
 }
 
-async function enter_data() {
+async function enter_data(legacy = false) {
   const clerk = new Clerk();
   try {
     await clerk.init({ read_clipboard: true });
-    await clerk.enter_clipboard_data();
+    await clerk.enter_clipboard_data(legacy);
   } catch (err) {
     console.error("Clerk enter data aborted:", err.message);
   }
 }
 
-async function copy_data() {
+async function copy_data(legacy = false) {
   const clerk = new Clerk();
   try {
     await clerk.init({ read_clipboard: false });
-    await clerk.export_to_clipboard();
+    if (legacy) {
+      await clerk.export_to_clipboard_legacy();
+    } else {
+      await clerk.export_to_clipboard();
+    }
   } catch (err) {
     console.error("Clerk export aborted:", err.message);
   }
@@ -157,19 +171,90 @@ class Clerk {
         element.value = targetOption.value;
         element.dispatchEvent(new Event('change', { bubbles: true }));
       }
-    } else {
-      let valToInsert = text;
-      // If passing a combined string (e.g., "91 = Straight Line") into a numeric input, extract just the number
-      if (valToInsert.includes('=') && element.classList.toString().toLowerCase().includes('numeric')) {
-        valToInsert = valToInsert.split('=')[0].trim();
-      }
-      element.setSelectionRange(0, element.value.length);
-      document.execCommand('insertText', false, valToInsert);
-      element.dispatchEvent(new Event('input', { bubbles: true }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 5));
+      element.blur();
+      return;
     }
+
+    // Custom autocomplete/combobox <input> (e.g. MACRS method picker), detected by a sibling
+    // "autocomplete-control" button. Ported from clerk_tabs.js. NOTE: relies on wait_for_element
+    // and GLOBAL_TIMEOUT, which are declared in clerk_tabs.js -- both scripts always load together
+    // per manifest.json, but this is a real cross-file dependency, not a coincidence.
+    const autocomplete_button = element.closest('[class*="Input-wrapper"]')
+      ?.querySelector('[data-testid="autocomplete-control"]');
+    if (autocomplete_button) {
+      await this.#set_autocomplete_value(text, element, autocomplete_button);
+      return;
+    }
+
+    let valToInsert = text;
+    // If passing a combined string (e.g., "91 = Straight Line") into a numeric input, extract just the number
+    if (valToInsert.includes('=') && element.classList.toString().toLowerCase().includes('numeric')) {
+      valToInsert = valToInsert.split('=')[0].trim();
+    }
+    element.setSelectionRange(0, element.value.length);
+    document.execCommand('insertText', false, valToInsert);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise(r => setTimeout(r, 5));
     element.blur();
+  }
+
+  async #click_menu_item(element) {
+    element.scrollIntoView({ block: 'center' });
+    const cfg = { bubbles: true, cancelable: true, view: window, buttons: 1, composed: true };
+    element.dispatchEvent(new MouseEvent('mousedown', cfg));
+    await new Promise(r => setTimeout(r, GLOBAL_TIMEOUT));
+    element.dispatchEvent(new MouseEvent('mouseup', cfg));
+    element.click();
+    await new Promise(r => setTimeout(r, GLOBAL_TIMEOUT));
+  }
+
+  async #set_autocomplete_value(text, element, autocomplete_button) {
+    const raw = text.trim();
+    // Options are formatted "NN = Description" -- match/type just the leading code.
+    const search_code = raw.includes('=') ? raw.split('=')[0].trim() : raw;
+
+    if (search_code === '') {
+      element.setSelectionRange(0, element.value.length);
+      document.execCommand('insertText', false, '');
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 5));
+      element.blur();
+      return;
+    }
+
+    const flyout_id = autocomplete_button.getAttribute('data-flyout-trigger');
+
+    // Typing filters the flyout list live -- this is what actually opens/narrows it.
+    element.setSelectionRange(0, element.value.length);
+    document.execCommand('insertText', false, search_code);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+
+    let flyout;
+    try {
+      flyout = await wait_for_element(`[data-flyout-area="${flyout_id}"]`, 1500);
+    } catch (err) {
+      console.warn(`Autocomplete list never appeared for "${search_code}":`, err);
+      return;
+    }
+
+    // Selectable leaf items are wrapped in .input-menuWrapper-edafc68 (role="menuitem");
+    // bare <li role="menuitem"> siblings without that wrapper are category headers, not options.
+    const items = Array.from(flyout.querySelectorAll('.input-menuWrapper-edafc68[role="menuitem"]'));
+    const target_item = items.find(item => {
+      const label = item.textContent.trim();
+      const label_code = label.split('=')[0].trim();
+      return label_code.toLowerCase() === search_code.toLowerCase();
+    });
+
+    if (!target_item) {
+      console.warn(`No autocomplete match found for code "${search_code}".`);
+      return;
+    }
+
+    await this.#click_menu_item(target_item);
   }
 
   async read_clipboard() {
@@ -252,7 +337,19 @@ class Clerk {
     return observer;
   }
 
-  async enter_clipboard_data() {
+  // Verbatim pre-dropdown-support implementation (commit before 9f7b3e1 "added dropdown menu
+  // interaction"). Always plain text insertion, no SELECT/autocomplete branching.
+  async set_input_value_legacy(text, element) {
+    element.focus();
+    element.setSelectionRange(0, element.value.length);
+    document.execCommand('insertText', false, text);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 5));
+    element.blur();
+  }
+
+  async enter_clipboard_data(legacy = false) {
     const observer = this.#start_new_row_observer();
     try {
       const { row: tsv_rows, col: tsv_cols } = this.#tsv_dims;
@@ -267,7 +364,11 @@ class Clerk {
         for (let col_idx = 0; col_idx < tsv_cols; col_idx++) {
           const el = row[start_col + col_idx];
           if (el) {
-            await this.set_input_value(this.#tsv_data[i][col_idx], el);
+            if (legacy) {
+              await this.set_input_value_legacy(this.#tsv_data[i][col_idx], el);
+            } else {
+              await this.set_input_value(this.#tsv_data[i][col_idx], el);
+            }
           }
         }
         await new Promise(r => setTimeout(r, 50));
@@ -326,6 +427,19 @@ class Clerk {
       if (el && !el.readOnly && !el.disabled) {
         await this.clear_input(el);
       }
+    }
+  }
+
+  // Verbatim pre-dropdown-support implementation (commit before 9f7b3e1 "added dropdown menu
+  // interaction"). Always raw .value, no SELECT text extraction, no blank-row filtering.
+  async export_to_clipboard_legacy() {
+    const tsvString = this.#inputs
+      .map(row => row.map(input => input.value).join('\t'))
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(tsvString);
+    } catch (err) {
+      alert('Failed to copy to clipboard: ' + err);
     }
   }
 
