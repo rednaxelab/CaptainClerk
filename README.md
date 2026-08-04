@@ -1,43 +1,82 @@
-# Captain Clerk Design Doc
+# CaptainClerk
 
-## Explanation of design split and name
+A Chrome extension that automates repetitive data entry in **Intuit ProConnect Tax Online** — paste spreadsheet data straight into ProConnect's grids and forms (including dropdowns, selects, and autocomplete fields), copy it back out for reconciliation, and navigate the tax return viewer without fighting continuous-scroll rendering.
 
-***Clerk*** class: Is basically some simple functionality with JS and DOM to make my life easier.
+Everything is driven by keyboard shortcuts. Click the extension icon at any time for a full reference of every shortcut currently active.
 
-## Currently Implemented Hotkeys for *Clerk*
+---
 
-| HOTKEY | DESCRIPTION |
-| :----: | :---------: |
-|`CTRL/CMD+SHIFT+L`|On tax return page, hide sidebar.|
-|`CTRL/CMD+SHIFT+V`|Paste -- honors dropdowns (select, autocomplete).|
-|`CTRL/CMD+SHIFT+C` | Copy -- honors dropdowns (select text, autocomplete display text).|
-|`ALT+SHIFT+END`|Clears all data in sensed grid of inputs|
-|`ALT+SHIFT+DEL`|Delete all row data until it's gone|
-|`ALT+DEL`|Delete current row|
+## What it does
 
-## Currently Implemented Hotkeys for *Clerk Tabs*
-| HOTKEY        | DESCRIPTION |
-| :-----------: | :------: |
-| `CTRL+SHIFT+DOWN and UP` |Move tabs left and right|
-| `ALT+SHIFT+V`|Paste to tabs, ignore zeros (dropdown-aware).|
-| `ALT+SHIFT+Z`|Paste to tabs, enforce zeros entry (dropdown-aware).|
-| `ALT+SHIFT+S` |Sum all boxes by tab.|
-| `ALT+SHIFT+0` |Clear all boxes by tab.|
-| `ALT+SHIFT+L` |Copy all "View All" list data to clipboard in TSV Format.|
-| `ALT+SHIFT+C` |Copy all tab values (for active input) to clipboard, one per line -- backward, for reconciliation.|
+CaptainClerk is three features under one roof:
 
-## Things to implement
+### Clerk
+Paste and copy for ProConnect's **grid tables** (e.g. depreciation schedules, Quick Entry grids). Handles plain text fields, native `<select>` dropdowns, and ProConnect's custom autocomplete/flyout fields (like the MACRS method picker) — matching on the leading code (`"53 = MACRS 5-year..."` → just type `53`). Read-only/auto-derived fields are skipped automatically rather than corrupting adjacent cells.
 
-- [ ] For the paste to tabs (***Clerk Tabs***), I need a paste that starts where you're currently to where you can append to data that's already there without changing anything before where you're at. There are many times that you just want to start that tab paste from the position in tabs that you currently occupy.
-- [ ] Tax Return Window: Way to quickly navigate tax returns when sidebar is hidden. Like `ctrl+shift+up and down` which will unhide the panel temporarily, select the next or last form. And maybe a fuzzy finder for all forms? But that can wait until later. And quickly scoll pages. It's currently clunky as fuck.
-- [ ] Add interaction with checkboxes? Likely not worth it.
+### Clerk Tabs
+For UI where the *same field* is repeated across a set of ProConnect's "tabs" (e.g. entering one value per client/entity). Paste a column of spreadsheet data straight down the tabs, sum them, clear them, or copy them back out for comparison — starting from either the first tab or whichever tab you're currently on.
 
-### <u>Other wish list items</u>
+### Captain
+Tax-return-viewer features. Currently: hide the sidebar and switch ProConnect's continuous-scroll form rendering into a single-page-at-a-time view (with next/previous navigation), reclaiming screen space and letting you flip through a return the way Lacerte used to, rather than scrolling through every page stacked end to end.
 
-- [ ] UI maybe from extension shortcut in toolbar that shows all current hotkeys.
+---
 
-- [ ] Something that will toggle the possible inputs and style them (like red box around). This will be useful to see what boxes can be copied and pasted from, to build a schema for import with right columns, etc.
+## Installation
 
-- [ ] Maybe some UI and UX--currently, everything is set up using hotkeys which are fine, but may be hard for my older partner.
+CaptainClerk isn't published to the Chrome Web Store — it's loaded as an unpacked local extension.
 
-  
+1. Open Chrome and go to `chrome://extensions`.
+2. Toggle **Developer mode** on (top right).
+3. Click **Load unpacked**.
+4. Select this project's root folder (the one containing `manifest.json`).
+5. Confirm **CaptainClerk** appears in your extensions list and is enabled.
+
+**After any update to the code**, click the reload icon on the CaptainClerk card in `chrome://extensions` — refreshing the ProConnect tab alone is not enough, since Chrome only re-reads the extension's files on an explicit reload.
+
+---
+
+## Usage
+
+**Grid paste/copy (Clerk):**
+1. Copy a range from Excel/Google Sheets (TSV).
+2. Click into the first cell in ProConnect where you want the paste to start.
+3. Press `Cmd/Ctrl+Shift+V`.
+
+**Tab paste/copy (Clerk Tabs):**
+1. Copy a single column of values.
+2. Click into the field on whichever tab you want to start from.
+3. Press `Alt+Shift+V` (starts from tab #1) or `Alt+Shift+.` (starts from the tab you're currently on).
+
+**Tax return viewer (Captain):**
+On the split-view tax return page, press `Cmd/Ctrl+Shift+L` to hide the sidebar and switch to single-page mode; `PageDown`/`PageUp` to flip pages; press `Cmd/Ctrl+Shift+L` again to go back to normal.
+
+For the complete, current list of every shortcut, **click the CaptainClerk icon in the Chrome toolbar** — it opens a reference popup generated from the actual shortcuts in the code.
+
+---
+
+## How it's organized
+
+```
+manifest.json           Extension config; also defines script load order
+popup.html               Keybindings reference (opens from the toolbar icon)
+src/registry.js          Shared hotkey registry (used by captain.js)
+src/captain.js           Tax-return-viewer features
+src/clerk.js              Grid table paste/copy/clear
+src/clerk_tabs.js         Cross-tab paste/copy/sum/clear
+```
+
+`clerk.js` and `clerk_tabs.js` currently manage their own keyboard listeners rather than going through `registry.js`; only `captain.js` uses the shared registry today. Migrating the other two is a planned follow-up, not yet done.
+
+---
+
+## Known limitations
+
+- Dropdown/autocomplete matching works by scanning the visible option text for your typed value — if ProConnect changes how a specific field renders, that field's matching may need updating.
+- Single-page mode in the tax return viewer depends on ProConnect's current DOM structure for that page. If ProConnect changes that page's layout, single-page mode may need to be re-pointed at the new structure (paste/copy in Clerk and Clerk Tabs are unaffected either way).
+- This is a personal tool built against one specific ProConnect environment, not tested across accounts/configurations.
+
+---
+
+## License
+
+All rights reserved. See [`LICENSE`](./LICENSE).
