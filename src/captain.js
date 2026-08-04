@@ -7,14 +7,40 @@ let tax_return_side_bar_hidden = false;
 
 /***************************SINGLE-PAGE MODE*****************************************************
  * ProConnect renders a form's pages continuously (all pages stacked, scroll to move between
- * them). This overlays an alternate mode: hide every page except one at a time.
+ * them). This overlays an alternate mode: hide everything except one page at a time.
  *
- * Structure this depends on (confirmed against a live captured form):
- *   div.main-content                          <- actual scrolling ancestor
- *     div.tax-return-form
- *       div                                   <- wrapper, one per page (no class of its own)
- *         div.page-number                     <- "page#N" label
- *         div.tax-form-page[data-pagenumber]  <- the rendered <svg class="taxform"> page itself
+ * Structure this depends on (confirmed against a live captured form, full ancestor chain):
+ *   div.tax-return-page.companion-standalone.split-view  <- isolation root: everything ABOVE
+ *                                                            this is persistent app-wide shell
+ *                                                            (nav, etc.), left untouched.
+ *     div.page-layout
+ *       div.content-container
+ *         div.content-wrapper
+ *           div.main-content-wrapper.check-return
+ *             div.main-content                            <- actual scrolling ancestor
+ *               div.check-return-content
+ *                 div.scrollable
+ *                   div.scrollable-content.content-padding
+ *                     div.tax-return-form
+ *                       h3                                 <- form title
+ *                       div.Stack-wrapper-3c3d613          <- "choose highlighted items..." legend
+ *                       div                                 <- wrapper, one per page (no class)
+ *                         div.page-number                    <- "page#N" label
+ *                         div.tax-form-page[data-pagenumber]  <- rendered <svg class="taxform"> page
+ *                       div (more page wrappers, repeating)
+ *               [footer widget, sibling of .check-return-content under .main-content]
+ *   div.details-wrapper.details-wrapper-responsive  <- client-info/header toolbar; structural
+ *                                                       location relative to the root above is
+ *                                                       not fully confirmed, so it's ALSO hidden
+ *                                                       by name as a redundant fallback below.
+ *
+ * TWO hiding mechanisms, layered:
+ *   1. General isolate: walking up from .tax-return-form to the isolation root, hiding every
+ *      sibling encountered at each level. This is what catches the footer, and anything else
+ *      sharing an ancestor with the form without needing to be named -- the whole point being
+ *      this shouldn't need updating as ProConnect adds/moves chrome around the form.
+ *   2. Allowlist within .tax-return-form: every direct child is hidden except whichever page
+ *      wrapper is currently showing (title, legend, other pages -- all covered by one rule).
  *
  * We hide/show the outer per-page wrapper (parent of .tax-form-page), not .tax-form-page alone,
  * so each page's own "page#N" label travels with it as a free "you are here" indicator.
@@ -31,6 +57,19 @@ let tax_return_side_bar_hidden = false;
 let single_page_mode_active = false;
 let single_page_wrappers = [];
 let single_page_index = 0;
+let single_page_isolated = []; // {element, previous_display} hidden by isolate_element, for precise restore
+
+function get_tax_return_form_container() {
+  return document.querySelector('.tax-return-form');
+}
+
+function get_isolation_root() {
+  return document.querySelector('.tax-return-page.companion-standalone.split-view');
+}
+
+function get_header_toolbar() {
+  return document.querySelector('.details-wrapper.details-wrapper-responsive');
+}
 
 function get_single_page_wrappers() {
   return Array.from(document.querySelectorAll('.tax-form-page'))
@@ -38,9 +77,40 @@ function get_single_page_wrappers() {
     .filter(Boolean);
 }
 
+// Walks up from `target` to (but not including) `root`, hiding every sibling encountered at
+// each level along the way. Returns the list of what was hidden (with each element's PRIOR
+// display value, not just assumed empty) so it can be precisely restored later.
+function isolate_element(target, root) {
+  const hidden = [];
+  let node = target;
+  while (node && node !== root && node.parentElement) {
+    const parent = node.parentElement;
+    Array.from(parent.children).forEach(sibling => {
+      if (sibling !== node) {
+        hidden.push({ element: sibling, previous_display: sibling.style.display });
+        sibling.style.display = 'none';
+      }
+    });
+    node = parent;
+  }
+  return hidden;
+}
+
+function restore_isolated(hidden) {
+  hidden.forEach(({ element, previous_display }) => {
+    element.style.display = previous_display;
+  });
+}
+
+// Hides every direct child of .tax-return-form except the page wrapper at `index` --
+// the allowlist: only the current page stays visible, everything else (title, legend,
+// other pages) is hidden without needing to be named individually.
 function show_only_single_page(index) {
-  single_page_wrappers.forEach((wrapper, i) => {
-    wrapper.style.display = (i === index) ? '' : 'none';
+  const container = get_tax_return_form_container();
+  if (!container) return;
+  const current_wrapper = single_page_wrappers[index];
+  Array.from(container.children).forEach(child => {
+    child.style.display = (child === current_wrapper) ? '' : 'none';
   });
 }
 
@@ -49,13 +119,46 @@ function enable_single_page_mode() {
   if (single_page_wrappers.length === 0) return; // no pages found -- nothing to do
   single_page_index = 0;
   show_only_single_page(single_page_index);
+
+  const container = get_tax_return_form_container();
+  const root = get_isolation_root();
+  if (container && root) {
+    single_page_isolated = isolate_element(container, root);
+  }
+
+  // Redundant fallback in case the header isn't actually covered by the isolate walk above --
+  // harmless if it's already hidden (setting display:none twice is a no-op).
+  const header = get_header_toolbar();
+  if (header) header.style.display = 'none';
+
+  // Center the page. Root cause of the earlier shrink (both align-items:center AND margin:auto
+  // alone): per the flexbox spec, auto margins on a flex item's cross-axis disable
+  // align-items:stretch for THAT item specifically -- it falls back to its natural/unstretched
+  // size instead of growing to its max-width. Fix: give the wrapper an explicit width (100%,
+  // capped by its own existing max-width:980px) so it isn't depending on stretch to size itself
+  // at all -- then margin:auto can center that already-correctly-sized box without conflict.
+  single_page_wrappers.forEach(wrapper => {
+    wrapper.style.width = '100%';
+    wrapper.style.margin = '0 auto';
+  });
   single_page_mode_active = true;
 }
 
 function disable_single_page_mode() {
+  const container = get_tax_return_form_container();
+  if (container) {
+    Array.from(container.children).forEach(child => {
+      child.style.display = '';
+    });
+  }
   single_page_wrappers.forEach(wrapper => {
-    wrapper.style.display = '';
+    wrapper.style.width = '';
+    wrapper.style.margin = '';
   });
+  restore_isolated(single_page_isolated);
+  single_page_isolated = [];
+  const header = get_header_toolbar();
+  if (header) header.style.display = '';
   single_page_mode_active = false;
   single_page_wrappers = [];
   single_page_index = 0;
@@ -80,21 +183,21 @@ function disable_single_page_mode() {
       }
     }, 'Captain: Toggle tax return sidebar + single-page mode');
 
-    // Alt + Shift + Down/Up Arrow -- next/previous page, only while single-page mode is active.
-    // Deliberately NOT bare arrow keys or PageDown/PageUp: those have real native meaning
-    // (cursor movement, native scrolling) that would need suppressing on every keystroke even
-    // when single-page mode is off. This combo has no native meaning, so if the mode-check
-    // below is ever wrong, the failure mode is "does nothing" rather than "breaks something else."
-    Hotkeys.register('alt+shift+ArrowDown', () => {
-      if (!single_page_mode_active || single_page_wrappers.length === 0) return;
+    // PageDown/PageUp -- next/previous page, but ONLY while single-page mode is active (guard).
+    // When single-page mode is off, the guard returns false, so these keys are left completely
+    // untouched and scroll the continuous view natively -- a fitting default either way.
+    Hotkeys.register('PageDown', () => {
       single_page_index = Math.min(single_page_index + 1, single_page_wrappers.length - 1);
       show_only_single_page(single_page_index);
-    }, 'Captain: Next page (single-page mode)');
+    }, 'Captain: Next page (single-page mode)', {
+      guard: () => single_page_mode_active && single_page_wrappers.length > 0
+    });
 
-    Hotkeys.register('alt+shift+ArrowUp', () => {
-      if (!single_page_mode_active || single_page_wrappers.length === 0) return;
+    Hotkeys.register('PageUp', () => {
       single_page_index = Math.max(single_page_index - 1, 0);
       show_only_single_page(single_page_index);
-    }, 'Captain: Previous page (single-page mode)');
+    }, 'Captain: Previous page (single-page mode)', {
+      guard: () => single_page_mode_active && single_page_wrappers.length > 0
+    });
   }
 }

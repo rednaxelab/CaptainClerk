@@ -50,7 +50,12 @@ const Hotkeys = (() => {
   // Registers a hotkey. Throws (loudly, via alert -- not console, so it's impossible to miss
   // even if DevTools is never opened) if the exact combo is already claimed. This should only
   // ever fire due to a development-time mistake, never during normal use.
-  function register(combo, handler, label = combo) {
+  //
+  // Optional options.guard: (event) => boolean, checked BEFORE preventDefault/handler. If it
+  // returns false, the event is left completely untouched -- native behavior proceeds as if
+  // this hotkey were never registered. Use this for combos with real native meaning (arrow
+  // keys, PageUp/PageDown) that should only be claimed in a specific mode/context.
+  function register(combo, handler, label = combo, options = {}) {
     const parsed = parse_combo(combo);
     const sig = signature(parsed);
     const existing = registry.get(sig);
@@ -59,7 +64,7 @@ const Hotkeys = (() => {
       alert(message);
       throw new Error(message);
     }
-    registry.set(sig, { combo, label, handler, ...parsed });
+    registry.set(sig, { combo, label, handler, guard: options.guard || null, ...parsed });
   }
 
   // Returns every registered hotkey as a plain array -- useful for generating documentation
@@ -74,6 +79,7 @@ const Hotkeys = (() => {
     const sig = signature({ ctrl, alt: e.altKey, shift: e.shiftKey, code: e.code });
     const entry = registry.get(sig);
     if (!entry) return;
+    if (entry.guard && !entry.guard(e)) return; // Let native behavior proceed untouched.
     e.preventDefault();
     e.stopImmediatePropagation();
     await entry.handler(e);
