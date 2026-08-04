@@ -43,6 +43,16 @@ document.addEventListener('keydown', async (e) => {
     e.preventDefault();
     await paste_to_tabs(false);
   }
+  // Alt + Shift + . (>) (Paste TSV data in tabs -- ignoring zeroes -- starting from the CURRENT tab)
+  if (!(cmdOrCtrl) && e.altKey && e.shiftKey && e.code === 'Period') {
+    e.preventDefault();
+    await paste_to_tabs(true, true);
+  }
+  // Alt + Shift + / (?) (Paste TSV data in tabs -- enforcing zeroes -- starting from the CURRENT tab)
+  if (!(cmdOrCtrl) && e.altKey && e.shiftKey && e.code === 'Slash') {
+    e.preventDefault();
+    await paste_to_tabs(false, true);
+  }
   // Alt + Shift + S (Sum all data)
   if (e.altKey && e.shiftKey && e.code === 'KeyS') {
     e.preventDefault();
@@ -421,7 +431,7 @@ async function get_tab_value(idx, input_element_id) {
   return new_tab_element.value;
 }
 
-async function paste_to_tabs(ignore_zeros) {
+async function paste_to_tabs(ignore_zeros, start_at_current = false) {
   // Uses the relaxed lookup since closing a flyout can leave activeElement pointed
   // at a focus-guard element with no id right after a dropdown pick.
   const active_id = get_active_input_id();
@@ -439,7 +449,12 @@ async function paste_to_tabs(ignore_zeros) {
     return;
   }
   const tabs = await get_active_tab();
-  const limit = Math.min(tsv.dims.row, tabs.len);
+  const start_index = start_at_current ? tabs.idx : 0;
+  const available = tabs.len - start_index;
+  const limit = Math.min(tsv.dims.row, available);
+  if (tsv.dims.row > available) {
+    alert(`Clipboard has ${tsv.dims.row} rows but only ${available} tab(s) available from the starting position. Pasted the first ${limit}; the remaining ${tsv.dims.row - limit} row(s) were not pasted.`);
+  }
   for (let i = 0; i < limit; i++) {
     const data = tsv.data[i][0];
     const isZeroOrEmpty = data === "" || parseFloat(data) === 0;
@@ -447,7 +462,7 @@ async function paste_to_tabs(ignore_zeros) {
       continue;
     }
     try {
-      await set_tab_value(i, data, active_id);
+      await set_tab_value(start_index + i, data, active_id);
     } catch (err) {
     }
   }

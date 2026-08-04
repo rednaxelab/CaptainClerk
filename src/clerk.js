@@ -20,7 +20,7 @@
         e.preventDefault();
         copy_data();
       }
-      // Alt + Shift + 0 (clear out grid of inputs)
+      // Alt + Shift + End (clear out grid of inputs)
       else if (e.altKey && e.shiftKey && e.code === 'End') {
         e.preventDefault();
         clear_data();
