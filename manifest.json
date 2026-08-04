@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CaptainClerk",
-  "version": "0.1",
+  "version": "0.3",
   "description": "Helpful automation tools for Intuit Proconnect",
   "permissions": [
     "activeTab"

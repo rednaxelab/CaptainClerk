@@ -71,6 +71,18 @@ function get_header_toolbar() {
   return document.querySelector('.details-wrapper.details-wrapper-responsive');
 }
 
+// Sets .tax-return-form's min-height to the viewport height, so there's actual leftover
+// vertical space for justify-content:center to distribute. Deliberately uses window.innerHeight,
+// NOT .main-content's measured height: .main-content isn't independently fixed to the viewport,
+// it grows to fit ITS OWN content -- which includes .tax-return-form. Measuring it and using
+// that to set .tax-return-form's height created a feedback loop (each cycle made both taller).
+// window.innerHeight can never be affected by our own DOM changes, so no loop is possible.
+function sync_single_page_form_height() {
+  const form = get_tax_return_form_container();
+  if (!form) return;
+  form.style.minHeight = window.innerHeight + 'px';
+}
+
 function get_single_page_wrappers() {
   return Array.from(document.querySelectorAll('.tax-form-page'))
     .map(el => el.parentElement)
@@ -140,7 +152,25 @@ function enable_single_page_mode() {
   single_page_wrappers.forEach(wrapper => {
     wrapper.style.width = '100%';
     wrapper.style.margin = '0 auto';
+    // ProConnect's own CSS gives the wrapper flex-grow:1 -- harmless/invisible under native
+    // continuous scroll (no leftover space to grow into), but once min-height below gives
+    // .tax-return-form real leftover height, this rule claims all of it for the wrapper
+    // itself, leaving nothing for justify-content to center with. Override to 0.
+    wrapper.style.flexGrow = '0';
   });
+
+  // Vertical centering: .tax-return-form is flex-direction:column, so justify-content controls
+  // this axis correctly (no axis-confusion trap here, unlike the horizontal case). But it needs
+  // actual leftover space to distribute -- by default the container just shrinks to fit its one
+  // visible child, same root shape as the horizontal shrink. min-height, kept in sync with the
+  // viewport via a resize listener, supplies that space -- see sync_single_page_form_height for
+  // why window.innerHeight is used instead of measuring .main-content (a feedback loop).
+  if (container) {
+    container.style.justifyContent = 'center';
+  }
+  window.addEventListener('resize', sync_single_page_form_height);
+  sync_single_page_form_height(); // set immediately -- don't wait for the first resize event
+
   single_page_mode_active = true;
 }
 
@@ -150,10 +180,14 @@ function disable_single_page_mode() {
     Array.from(container.children).forEach(child => {
       child.style.display = '';
     });
+    container.style.justifyContent = '';
+    container.style.minHeight = '';
   }
+  window.removeEventListener('resize', sync_single_page_form_height);
   single_page_wrappers.forEach(wrapper => {
     wrapper.style.width = '';
     wrapper.style.margin = '';
+    wrapper.style.flexGrow = '';
   });
   restore_isolated(single_page_isolated);
   single_page_isolated = [];
