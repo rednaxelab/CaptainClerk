@@ -48,7 +48,7 @@ CaptainClerk isn't published to the Chrome Web Store — it's loaded as an unpac
 3. Press `Alt+Shift+V` (starts from tab #1) or `Alt+Shift+.` (starts from the tab you're currently on).
 
 **Tax return viewer (Captain):**
-On the split-view tax return page, press `Cmd/Ctrl+Shift+L` to hide the sidebar and switch to single-page mode; `PageDown`/`PageUp` to flip pages; press `Cmd/Ctrl+Shift+L` again to go back to normal.
+On the split-view tax return page, press `Cmd/Ctrl+Shift+L` to hide the sidebar and switch to single-page mode. While active: `PageDown`/`PageUp` to flip pages, `Home`/`End` to jump to the first/last page, `Alt+Shift+1` through `Alt+Shift+9` to jump straight to a page number (no-op if it doesn't exist). Press `Cmd/Ctrl+Shift+L` again to go back to normal.
 
 For the complete, current list of every shortcut, **click the CaptainClerk icon in the Chrome toolbar** — it opens a reference popup generated from the actual shortcuts in the code.
 

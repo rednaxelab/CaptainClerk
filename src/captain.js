@@ -199,5 +199,38 @@ function disable_single_page_mode() {
     }, 'Captain: Previous page (single-page mode)', {
       guard: () => single_page_mode_active && single_page_wrappers.length > 0
     });
+
+    // Home/End -- jump to first/last page. Same guard pattern: only claimed while single-page
+    // mode is active, otherwise left untouched (native Home/End scrolling behavior applies).
+    Hotkeys.register('Home', () => {
+      single_page_index = 0;
+      show_only_single_page(single_page_index);
+    }, 'Captain: Jump to first page (single-page mode)', {
+      guard: () => single_page_mode_active && single_page_wrappers.length > 0
+    });
+
+    Hotkeys.register('End', () => {
+      single_page_index = single_page_wrappers.length - 1;
+      show_only_single_page(single_page_index);
+    }, 'Captain: Jump to last page (single-page mode)', {
+      guard: () => single_page_mode_active && single_page_wrappers.length > 0
+    });
+
+    // Alt+Shift+1..9 -- jump directly to page N (1-indexed, matching the visible "page#N" label).
+    // No-op if that page doesn't exist. NOTE: Ctrl/Cmd+1-9 was the original ask, but those combos
+    // are reserved by Chrome itself for switching browser tabs by position -- that's handled
+    // above the page's own JavaScript, so a content script can never intercept it. Alt+Shift+N
+    // matches this project's existing modifier convention and isn't reserved by Chrome or (on
+    // standard layouts) used for typed characters.
+    for (let n = 1; n <= 9; n++) {
+      Hotkeys.register(`alt+shift+${n}`, () => {
+        const target_index = n - 1; // page #N is 1-indexed; array is 0-indexed
+        if (target_index >= single_page_wrappers.length) return; // that page doesn't exist -- no-op
+        single_page_index = target_index;
+        show_only_single_page(single_page_index);
+      }, `Captain: Jump to page ${n} (single-page mode)`, {
+        guard: () => single_page_mode_active && single_page_wrappers.length > 0
+      });
+    }
   }
 }
