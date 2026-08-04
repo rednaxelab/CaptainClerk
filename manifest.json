@@ -24,6 +24,8 @@
         "https://ito.intuit.com/*"
       ],
       "js": [
+        "src/registry.js",
+        "src/captain.js",
         "src/clerk.js",
         "src/clerk_tabs.js"
       ],

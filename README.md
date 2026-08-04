@@ -28,12 +28,16 @@
 
 ## Things to implement
 
-- [ ] Add interaction with checkboxes?
-- [ ] UI maybe from extension shortcut in toolbar that shows all current hotkeys.
+- [ ] For the paste to tabs (***Clerk Tabs***), I need a paste that starts where you're currently to where you can append to data that's already there without changing anything before where you're at. There are many times that you just want to start that tab paste from the position in tabs that you currently occupy.
+- [ ] Tax Return Window: Way to quickly navigate tax returns when sidebar is hidden. Like `ctrl+shift+up and down` which will unhide the panel temporarily, select the next or last form. And maybe a fuzzy finder for all forms? But that can wait until later. And quickly scoll pages. It's currently clunky as fuck.
+- [ ] Add interaction with checkboxes? Likely not worth it.
 
 ### <u>Other wish list items</u>
 
-- [ ] Tax Return Window: Way to quickly navigate tax returns when sidebar is hidden. Like `ctrl+shift+up and down` which will unhide the panel temporarily, select the next or last form. And maybe a fuzzy finder for all forms? But that can wait until later. And quickly scoll pages. It's currently clunky as fuck.
+- [ ] UI maybe from extension shortcut in toolbar that shows all current hotkeys.
+
 - [ ] Something that will toggle the possible inputs and style them (like red box around). This will be useful to see what boxes can be copied and pasted from, to build a schema for import with right columns, etc.
+
 - [ ] Maybe some UI and UX--currently, everything is set up using hotkeys which are fine, but may be hard for my older partner.
-- [ ] For the paste to tabs (***Clerk Tabs***), I need a paste that starts where you're currently to where you can append to data that's already there without changing anything before where you're at.
+
+  

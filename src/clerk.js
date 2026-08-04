@@ -1,56 +1,44 @@
-const url_params = new URLSearchParams(window.location.search);
-const tax_return_window = url_params.get('splitViewEnabled') === 'true';
-let tax_return_side_bar_hidden = false;
+// Split-view tax-return-viewer pages don't have Clerk's grid tables, so its own hotkeys are
+// skipped there. The sidebar-toggle feature that used to live in this if/else has moved to
+// captain.js (see Hotkeys registry) -- this local check is a small, deliberate duplication to
+// avoid a cross-file load-order dependency, not an oversight. Block-scoped so its `const`
+// doesn't collide with captain.js's own top-level declaration of the same name.
+{
+  const tax_return_window = new URLSearchParams(window.location.search).get('splitViewEnabled') === 'true';
 
-
-if (tax_return_window) { // splitViewEnabled=true in url indicates you're on tax return viewer
-  document.addEventListener('keydown', (e) => {
-    // Ctrl + Shift + L (Hides sidebar on tax return tab)
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyL') {
-      const sidebar = document.querySelector('div.sidebar');
-      if (sidebar) {
-        if (tax_return_side_bar_hidden) {
-          sidebar.hidden = false;
-          tax_return_side_bar_hidden = false;
-        } else {
-          sidebar.hidden = true;
-          tax_return_side_bar_hidden = true;
-        }
+  if (!tax_return_window) {
+    document.addEventListener('keydown', async (e) => {
+      // Allow for MacOS CMD (metaKey) key OR control key
+      const cmdOrCtrl = e.ctrlKey || e.metaKey;
+      // Ctrl/Cmd + Shift + V (Paste Data)
+      if (cmdOrCtrl && e.shiftKey && e.code === 'KeyV') {
+        e.preventDefault();
+        enter_data();
       }
-    }
-  }, true);
-} else { // these is normal proconnect extension functionality
-  document.addEventListener('keydown', async (e) => {
-    // Allow for MacOS CMD (metaKey) key OR control key
-    const cmdOrCtrl = e.ctrlKey || e.metaKey;
-    // Ctrl/Cmd + Shift + V (Paste Data)
-    if (cmdOrCtrl && e.shiftKey && e.code === 'KeyV') {
-      e.preventDefault();
-      enter_data();
-    }
-    // Ctrl/Cmd + Shift + C (Copy Data)
-    else if (cmdOrCtrl && e.shiftKey && e.code === 'KeyC') {
-      e.preventDefault();
-      copy_data();
-    }
-    // Alt + Shift + 0 (clear out grid of inputs)
-    else if (e.altKey && e.shiftKey && e.code === 'End') {
-      e.preventDefault();
-      clear_data();
-    }
-    // Alt + Shift + Delete (Delete Until Empty)
-    else if (e.altKey && e.shiftKey && e.code === 'Delete') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      delete_until_empty();
-    }
-    // Alt + Delete (Delete Active Row)
-    else if (e.altKey && e.code === 'Delete') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      delete_active_row();
-    }
-  }, true);
+      // Ctrl/Cmd + Shift + C (Copy Data)
+      else if (cmdOrCtrl && e.shiftKey && e.code === 'KeyC') {
+        e.preventDefault();
+        copy_data();
+      }
+      // Alt + Shift + 0 (clear out grid of inputs)
+      else if (e.altKey && e.shiftKey && e.code === 'End') {
+        e.preventDefault();
+        clear_data();
+      }
+      // Alt + Shift + Delete (Delete Until Empty)
+      else if (e.altKey && e.shiftKey && e.code === 'Delete') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        delete_until_empty();
+      }
+      // Alt + Delete (Delete Active Row)
+      else if (e.altKey && e.code === 'Delete') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        delete_active_row();
+      }
+    }, true);
+  }
 }
 
 async function enter_data() {
